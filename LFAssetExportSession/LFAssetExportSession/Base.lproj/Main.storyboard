@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="16096" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="BYZ-38-t0r">
+    <device id="retina6_1" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="16086"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <scenes>
+        <!--View Controller-->
+        <scene sceneID="tne-QT-ifu">
+            <objects>
+                <viewController id="BYZ-38-t0r" customClass="ViewController" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="8bC-Xf-vdC">
+                        <rect key="frame" x="0.0" y="0.0" width="414" height="896"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <subviews>
+                            <segmentedControl opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="sob-2E-lns">
+                                <rect key="frame" x="20" y="64" width="374" height="32"/>
+                                <segments>
+                                    <segment title="240P"/>
+                                    <segment title="360P"/>
+                                    <segment title="480P"/>
+                                    <segment title="720P"/>
+                                    <segment title="1080P"/>
+                                    <segment title="2K"/>
+                                    <segment title="4K"/>
+                                </segments>
+                            </segmentedControl>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="kEs-nf-VDv">
+                                <rect key="frame" x="161" y="433" width="92" height="30"/>
+                                <state key="normal" title="开始压缩视频"/>
+                                <connections>
+                                    <action selector="startAction:" destination="BYZ-38-t0r" eventType="touchUpInside" id="KDJ-Y3-7pI"/>
+                                </connections>
+                            </button>
+                            <button opaque="NO" contentMode="scaleToFill" enabled="NO" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="8kM-xK-iXx">
+                                <rect key="frame" x="191.5" y="471" width="31" height="30"/>
+                                <state key="normal" title="停止"/>
+                                <connections>
+                                    <action selector="stopAction:" destination="BYZ-38-t0r" eventType="touchUpInside" id="KlH-SB-8P4"/>
+                                </connections>
+                            </button>
+                        </subviews>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor" cocoaTouchSystemColor="whiteColor"/>
+                        <constraints>
+                            <constraint firstItem="8kM-xK-iXx" firstAttribute="centerX" secondItem="kEs-nf-VDv" secondAttribute="centerX" id="4qO-y1-LqK"/>
+                            <constraint firstItem="6Tk-OE-BBY" firstAttribute="trailing" secondItem="sob-2E-lns" secondAttribute="trailing" constant="20" id="7GU-Fw-EFX"/>
+                            <constraint firstItem="sob-2E-lns" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" constant="20" id="EEc-5t-FUn"/>
+                            <constraint firstItem="8kM-xK-iXx" firstAttribute="top" secondItem="kEs-nf-VDv" secondAttribute="bottom" constant="8" id="dtH-JR-4yB"/>
+                            <constraint firstItem="kEs-nf-VDv" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="efB-Uj-Gus"/>
+                            <constraint firstItem="kEs-nf-VDv" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="htQ-dy-iN6"/>
+                            <constraint firstItem="sob-2E-lns" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" constant="20" id="oew-yj-NT7"/>
+                        </constraints>
+                        <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
+                    </view>
+                    <connections>
+                        <outlet property="segmented" destination="sob-2E-lns" id="4Ze-Wf-eLM"/>
+                        <outlet property="startBtn" destination="kEs-nf-VDv" id="zB6-dC-R6s"/>
+                        <outlet property="stopBtn" destination="8kM-xK-iXx" id="PZl-Ra-vGM"/>
+                    </connections>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="139" y="101"/>
+        </scene>
+    </scenes>
+</document>
