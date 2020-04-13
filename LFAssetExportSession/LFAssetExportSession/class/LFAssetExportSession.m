@@ -70,6 +70,35 @@ inline static CGSize lf_assetExportSessionPresetSize(LFAssetExportSessionPreset 
     return size;
 }
 
+inline static LFAssetExportSessionPreset lf_assetExportSessionPresetFromSize(CGSize size)
+{
+    if (size.width <= 240 && size.height <= 360) {
+        return LFAssetExportSessionPreset240P;
+    }
+    if (size.width <= 360 && size.height <= 480) {
+        return LFAssetExportSessionPreset360P;
+    }
+    if (size.width <= 480 && size.height <= 640) {
+        return LFAssetExportSessionPreset480P;
+    }
+    if (size.width <= 540 && size.height <= 960) {
+        return LFAssetExportSessionPreset540P;
+    }
+    if (size.width <= 720 && size.height <= 1280) {
+        return LFAssetExportSessionPreset720P;
+    }
+    if (size.width <= 1080 && size.height <= 1920) {
+        return LFAssetExportSessionPreset1080P;
+    }
+    if (size.width <= 1440 && size.height <= 2560) {
+        return LFAssetExportSessionPreset2K;
+    }
+    if (size.width <= 2160 && size.height <= 3840) {
+        return LFAssetExportSessionPreset4K;
+    }
+    return LFAssetExportSessionPreset240P;
+}
+
 inline static unsigned long lf_assetExportSessionPresetBitrate(LFAssetExportSessionPreset preset)
 {
     // 根据这篇文章Video Encoding Settings for H.264 Excellence http://www.lighterra.com/papers/videoencodingh264/#maximumkeyframeinterval
@@ -122,7 +151,8 @@ inline static NSDictionary *lf_assetExportVideoConfig(CGSize size, LFAssetExport
         videoSize = CGSizeMake(videoSize.width / ratio, videoSize.height / ratio);
     }
     
-    unsigned long bitrate = lf_assetExportSessionPresetBitrate(preset);
+    LFAssetExportSessionPreset realPreset = lf_assetExportSessionPresetFromSize(videoSize);
+    unsigned long bitrate = lf_assetExportSessionPresetBitrate(realPreset);
     
     return @{
         AVVideoCodecKey: AVVideoCodecH264,
