@@ -34,6 +34,7 @@ typedef NS_ENUM(NSUInteger, LFAssetExportSessionPreset) {
     LFAssetExportSessionPreset240P,
     LFAssetExportSessionPreset360P,
     LFAssetExportSessionPreset480P,
+    LFAssetExportSessionPreset540P,
     LFAssetExportSessionPreset720P,
     LFAssetExportSessionPreset1080P,
     LFAssetExportSessionPreset2K, // 1440P

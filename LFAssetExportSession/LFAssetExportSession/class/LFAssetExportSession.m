@@ -49,6 +49,9 @@ inline static CGSize lf_assetExportSessionPresetSize(LFAssetExportSessionPreset 
         case LFAssetExportSessionPreset480P:
             size = CGSizeMake(480, 640);
             break;
+        case LFAssetExportSessionPreset540P:
+            size = CGSizeMake(540, 960);
+            break;
         case LFAssetExportSessionPreset1080P:
             size = CGSizeMake(1080, 1920);
             break;
@@ -83,6 +86,9 @@ inline static unsigned long lf_assetExportSessionPresetBitrate(LFAssetExportSess
             break;
         case LFAssetExportSessionPreset480P:
             bitrate = 1200000;
+            break;
+        case LFAssetExportSessionPreset540P:
+            bitrate = 2074000;
             break;
         case LFAssetExportSessionPreset1080P:
             bitrate = 7900000;
