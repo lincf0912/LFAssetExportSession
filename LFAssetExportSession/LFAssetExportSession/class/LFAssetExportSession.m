@@ -194,14 +194,24 @@ inline static NSDictionary *lf_assetExportVideoOutputConfig(void)
 inline static NSDictionary *lf_assetExportAudioOutputConfig(void)
 {
     return @{
-        AVFormatIDKey : [NSNumber numberWithUnsignedInt:kAudioFormatLinearPCM]
+        AVFormatIDKey: [NSNumber numberWithUnsignedInt:kAudioFormatLinearPCM],
+        AVSampleRateKey: @44100,
+        AVNumberOfChannelsKey: @2,
+        AVLinearPCMBitDepthKey: @16,
+        AVLinearPCMIsBigEndianKey: @NO,
+        AVLinearPCMIsFloatKey: @NO,
+        AVLinearPCMIsNonInterleaved: @NO
     };
 }
 
 inline static NSDictionary *lf_assetExportAudioConfig(void)
 {
+    AudioChannelLayout channelLayout;
+    memset(&channelLayout, 0, sizeof(AudioChannelLayout));
+    channelLayout.mChannelLayoutTag = kAudioChannelLayoutTag_Stereo;
     return @{
         AVFormatIDKey: @(kAudioFormatMPEG4AAC),
+        AVChannelLayoutKey: [NSData dataWithBytes:&channelLayout length:sizeof(AudioChannelLayout)],
         AVNumberOfChannelsKey: @2,
         AVSampleRateKey: @44100,
         AVEncoderBitRateKey: @128000
@@ -390,8 +400,10 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
         
         if (self->_error == nil && self.writer.status != AVAssetWriterStatusCancelled) {
             [self.writer finishWritingWithCompletionHandler:^{
-                self->_error = self.writer.error;
-                [self complete];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    self->_error = self.writer.error;
+                    [self complete];
+                });
             }];
         } else {
             [self complete];
@@ -725,19 +737,22 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
 
 - (void)complete
 {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (self.writer.status == AVAssetWriterStatusFailed || self.writer.status == AVAssetWriterStatusCancelled)
-        {
-            [NSFileManager.defaultManager removeItemAtURL:self.outputURL error:nil];
-        }
-        
-        if (self.completionHandler)
-        {
-            self.completionHandler();
-            self.completionHandler = nil;
-        }
-        [self reset];
-    });
+    if (!_cancelled) {
+        [self _setProgress:1];
+    }
+            
+    if (self.writer.status == AVAssetWriterStatusFailed || self.writer.status == AVAssetWriterStatusCancelled)
+    {
+        [NSFileManager.defaultManager removeItemAtURL:self.outputURL error:nil];
+    }
+    
+    if (self.completionHandler)
+    {
+        self.completionHandler();
+        self.completionHandler = nil;
+    }
+    [self reset];
+
 }
 
 - (NSError *)error
@@ -793,7 +808,8 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
 }
 
 - (void)_setProgress:(float)progress {
-    dispatch_async(dispatch_get_main_queue(), ^{
+    
+    void (^doProgress)(void) = ^{
         [self willChangeValueForKey:@"progress"];
         
         self->_progress = progress;
@@ -804,7 +820,13 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
         if ([delegate respondsToSelector:@selector(assetExportSessionDidProgress:)]) {
             [delegate assetExportSessionDidProgress:self];
         }
-    });
+    };
+    
+    if ([NSThread isMainThread]) {
+        doProgress();
+    } else {
+        dispatch_async(dispatch_get_main_queue(), doProgress);
+    }
 }
 
 - (void)reset
