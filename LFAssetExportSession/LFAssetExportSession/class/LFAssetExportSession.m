@@ -271,6 +271,44 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
     return self;
 }
 
+- (float)estimatedExportSize
+{
+    unsigned long audioBitrate = 0;
+    unsigned long videoBitrate = 0;
+    
+    if (self.audioSettings) {
+        audioBitrate = [[self.audioSettings objectForKey:AVEncoderBitRateKey] unsignedLongValue];
+    } else {
+        audioBitrate = [[lf_assetExportAudioConfig() objectForKey:AVEncoderBitRateKey] unsignedLongValue];
+    }
+    if (self.videoSettings) {
+        videoBitrate = [[[self.videoSettings objectForKey:AVVideoCompressionPropertiesKey] objectForKey:AVVideoAverageBitRateKey] unsignedLongValue];
+    } else {
+        NSArray *videoTracks = [self.asset tracksWithMediaType:AVMediaTypeVideo];
+        if (videoTracks.count > 0) {
+            AVAssetTrack *videoTrack = [videoTracks objectAtIndex:0];
+            videoBitrate = [[[lf_assetExportVideoConfig(videoTrack.naturalSize, self.preset) objectForKey:AVVideoCompressionPropertiesKey] objectForKey:AVVideoAverageBitRateKey] unsignedLongValue];
+        }
+    }
+    
+    Float64 duration = 0;
+    if (CMTIME_IS_VALID(self.timeRange.duration) && !CMTIME_IS_POSITIVE_INFINITY(self.timeRange.duration))
+    {
+        duration = CMTimeGetSeconds(self.timeRange.duration);
+    }
+    else
+    {
+        duration = CMTimeGetSeconds(self.asset.duration);
+    }
+    
+    if (audioBitrate > 0 && videoBitrate > 0) {
+        //    （音频编码率（KBit为单位）/8 + 视频编码率（KBit为单位）/8）× 影片总长度（秒为单位）= 文件大小（KB为单位）
+        float compressedSize = (audioBitrate/1000.0/8.0 + videoBitrate/1000.0/8.0) * duration;
+        return compressedSize;
+    }
+    return 0;
+}
+
 - (void)exportAsynchronouslyWithCompletionHandler:(void (^)(void))handler
 {
     NSParameterAssert(handler != nil);

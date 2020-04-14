@@ -161,6 +161,11 @@ typedef NS_ENUM(NSUInteger, LFAssetExportSessionPreset) {
 @property (nonatomic, assign, readonly) AVAssetExportSessionStatus status;
 
 /**
+ * The estimated size(KB) of the export session.
+ */
+@property (nonatomic, assign, readonly) float estimatedExportSize;
+
+/**
  * Returns an asset export session configured with a specified asset.
  *
  * @param asset The asset you want to export

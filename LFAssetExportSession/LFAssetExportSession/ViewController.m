@@ -77,6 +77,7 @@
     
 //    CMTime time = [asset duration];
 //    encoder.timeRange = CMTimeRangeMake(CMTimeMake(0, time.timescale), CMTimeMake(1, time.timescale));
+    NSLog(@"The compressed file size is about %.2fMB", encoder.estimatedExportSize/1000.0);
 
     [encoder exportAsynchronouslyWithCompletionHandler:^
     {
