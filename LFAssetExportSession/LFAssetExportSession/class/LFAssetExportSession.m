@@ -209,7 +209,11 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
 }
 
 @interface LFAssetExportSession ()
-
+{
+    dispatch_queue_t _audioQueue;
+    dispatch_queue_t _videoQueue;
+    dispatch_group_t _dispatchGroup;
+}
 @property (nonatomic, assign, readwrite) float progress;
 
 @property (nonatomic, strong) AVAssetReader *reader;
@@ -222,7 +226,9 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
 @property (nonatomic, assign) CGSize inputBufferSize;
 @property (nonatomic, assign) int videoOrientation;
 @property (nonatomic, assign) LFAssetExportSessionPreset preset;
-@property (nonatomic, strong) dispatch_queue_t inputQueue;
+@property (nonatomic, assign) BOOL needsLeaveAudio;
+@property (nonatomic, assign) BOOL needsLeaveVideo;
+
 @property (nonatomic, strong) void (^completionHandler)(void);
 
 @end
@@ -230,8 +236,22 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
 @implementation LFAssetExportSession
 {
     NSError *_error;
-    NSTimeInterval duration;
+    Float64 _totalDuration;
     CMTime lastSamplePresentationTime;
+}
+
+-(instancetype)init {
+    self = [super init];
+    
+    if (self) {
+        _audioQueue = dispatch_queue_create("me.corsin.SCAssetExportSession.AudioQueue", nil);
+        _videoQueue = dispatch_queue_create("me.corsin.SCAssetExportSession.VideoQueue", nil);
+        _dispatchGroup = dispatch_group_create();
+        _timeRange = CMTimeRangeMake(kCMTimeZero, kCMTimePositiveInfinity);
+        _shouldOptimizeForNetworkUse = NO;
+    }
+
+    return self;
 }
 
 + (instancetype)exportSessionWithAsset:(AVAsset *)asset preset:(LFAssetExportSessionPreset)preset
@@ -241,11 +261,10 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
 
 - (instancetype)initWithAsset:(AVAsset *)asset preset:(LFAssetExportSessionPreset)preset
 {
-    if ((self = [super init]))
+    if ((self = [self init]))
     {
         _preset = preset;
         _asset = asset;
-        _timeRange = CMTimeRangeMake(kCMTimeZero, kCMTimePositiveInfinity);
         _videoOrientation = [asset lf_degressFromVideo];
     }
 
@@ -255,7 +274,6 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
 - (void)exportAsynchronouslyWithCompletionHandler:(void (^)(void))handler
 {
     NSParameterAssert(handler != nil);
-    [self cancelExport];
     
     _cancelled = NO;
     
@@ -266,6 +284,9 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
         }];
         handler();
         return;
+    }
+    if ([NSFileManager.defaultManager fileExistsAtPath:self.outputURL.path]) {
+        [NSFileManager.defaultManager removeItemAtURL:self.outputURL error:nil];
     }
     
     NSError *readerError;
@@ -293,18 +314,101 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
     
     if (CMTIME_IS_VALID(self.timeRange.duration) && !CMTIME_IS_POSITIVE_INFINITY(self.timeRange.duration))
     {
-        duration = CMTimeGetSeconds(self.timeRange.duration);
+        _totalDuration = CMTimeGetSeconds(self.timeRange.duration);
     }
     else
     {
-        duration = CMTimeGetSeconds(self.asset.duration);
+        _totalDuration = CMTimeGetSeconds(self.asset.duration);
     }
     
     self.reader.timeRange = self.timeRange;
     self.writer.shouldOptimizeForNetworkUse = self.shouldOptimizeForNetworkUse;
     self.writer.metadata = self.metadata;
     
-    NSArray *videoTracks = [self.asset tracksWithMediaType:AVMediaTypeVideo];
+    [self _setupAudioUsingTracks:[self.asset tracksWithMediaType:AVMediaTypeAudio]];
+    [self _setupVideoUsingTracks:[self.asset tracksWithMediaType:AVMediaTypeVideo]];
+    
+    if (![_reader startReading]) {
+        _error = _reader.error;
+        handler();
+        return;
+    }
+    
+    if (![_writer startWriting]) {
+        _error = _writer.error;
+        handler();
+        return;
+    }
+    
+    [self.writer startSessionAtSourceTime:self.timeRange.start];
+    
+    [self beginReadWriteOnAudio];
+    [self beginReadWriteOnVideo];
+    
+    dispatch_group_notify(_dispatchGroup, dispatch_get_main_queue(), ^{
+        if (self->_error == nil) {
+            self->_error = self.writer.error;
+        }
+        
+        if (self->_error == nil && self.writer.status != AVAssetWriterStatusCancelled) {
+            [self.writer finishWritingWithCompletionHandler:^{
+                self->_error = self.writer.error;
+                [self complete];
+            }];
+        } else {
+            [self complete];
+        }
+    });
+}
+
+- (void)_setupAudioUsingTracks:(NSArray *)audioTracks {
+    //
+    //Audio output
+    //
+    if (audioTracks.count > 0) {
+        NSDictionary *settings = lf_assetExportAudioOutputConfig();
+
+        AVAudioMix *audioMix = self.audioMix;
+        AVAssetReaderOutput *audioOutput = nil;
+        if (audioMix == nil) {
+            audioOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTracks.firstObject outputSettings:settings];
+        } else {
+            AVAssetReaderAudioMixOutput *audioMixOutput = [AVAssetReaderAudioMixOutput assetReaderAudioMixOutputWithAudioTracks:audioTracks audioSettings:settings];
+            audioMixOutput.audioMix = audioMix;
+            audioOutput = audioMixOutput;
+        }
+        audioOutput.alwaysCopiesSampleData = NO;
+        if ([self.reader canAddOutput:audioOutput])
+        {
+            [self.reader addOutput:audioOutput];
+            self.audioOutput = audioOutput;
+        }
+    } else {
+        // Just in case this gets reused
+        self.audioOutput = nil;
+    }
+
+    //
+    // Audio input
+    //
+    if (self.audioOutput) {
+        
+        NSDictionary *settings = self.audioSettings;
+        if (settings == nil) {
+            settings = lf_assetExportAudioConfig();
+        }
+
+        self.audioInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeAudio outputSettings:settings];
+        self.audioInput.expectsMediaDataInRealTime = NO;
+        if ([self.writer canAddInput:self.audioInput])
+        {
+            [self.writer addInput:self.audioInput];
+        }
+    }
+}
+
+
+- (void)_setupVideoUsingTracks:(NSArray *)videoTracks {
     
     //
     // Video output
@@ -348,11 +452,15 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
             [self.reader addOutput:videoOutput];
             self.videoOutput = videoOutput;
         }
-        
-        //
-        // Video input
-        //
-        
+    } else {
+        // Just in case this gets reused
+        self.videoOutput = nil;
+    }
+    
+    //
+    // Video input
+    //
+    if (self.videoOutput) {
         NSDictionary *videoSettings = self.videoSettings;
         
         if (videoSettings == nil) {
@@ -378,169 +486,116 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
             self.videoPixelBufferAdaptor = [AVAssetWriterInputPixelBufferAdaptor assetWriterInputPixelBufferAdaptorWithAssetWriterInput:self.videoInput sourcePixelBufferAttributes:pixelBufferAttributes];
         }
     }
-    
-    //
-    //Audio output
-    //
-    NSArray *audioTracks = [self.asset tracksWithMediaType:AVMediaTypeAudio];
-    if (audioTracks.count > 0) {
-        NSDictionary *settings = lf_assetExportAudioOutputConfig();
-        
-        AVAudioMix *audioMix = self.audioMix;
-        AVAssetReaderOutput *audioOutput = nil;
-        if (audioMix == nil) {
-            audioOutput = [AVAssetReaderTrackOutput assetReaderTrackOutputWithTrack:audioTracks.firstObject outputSettings:settings];
-        } else {
-            AVAssetReaderAudioMixOutput *audioMixOutput = [AVAssetReaderAudioMixOutput assetReaderAudioMixOutputWithAudioTracks:audioTracks audioSettings:settings];
-            audioMixOutput.audioMix = audioMix;
-            audioOutput = audioMixOutput;
-        }
-        audioOutput.alwaysCopiesSampleData = NO;
-        if ([self.reader canAddOutput:audioOutput])
-        {
-            [self.reader addOutput:audioOutput];
-            self.audioOutput = audioOutput;
-        }
-    } else {
-        // Just in case this gets reused
-        self.audioOutput = nil;
-    }
-    
-    //
-    // Audio input
-    //
-    if (self.audioOutput) {
-        
-        NSDictionary *settings = self.audioSettings;
-        if (settings == nil) {
-            settings = lf_assetExportAudioConfig();
-        }
-        
-        self.audioInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeAudio outputSettings:settings];
-        self.audioInput.expectsMediaDataInRealTime = NO;
-        if ([self.writer canAddInput:self.audioInput])
-        {
-            [self.writer addInput:self.audioInput];
-        }
-    }
-    
-    [self.writer startWriting];
-    [self.reader startReading];
-    [self.writer startSessionAtSourceTime:self.timeRange.start];
-    
-    __block BOOL videoCompleted = NO;
-    __block BOOL audioCompleted = NO;
-    __weak typeof(self) wself = self;
-    self.inputQueue = dispatch_queue_create("LFAssetExportSessionInputQueue", DISPATCH_QUEUE_SERIAL);
-    if (videoTracks.count > 0) {
-        [self.videoInput requestMediaDataWhenReadyOnQueue:self.inputQueue usingBlock:^
-         {
-            if (![wself encodeReadySamplesFromOutput:wself.videoOutput toInput:wself.videoInput])
-            {
-                @synchronized(wself)
-                {
-                    videoCompleted = YES;
-                    if (audioCompleted)
-                    {
-                        if (!wself.cancelled) {
-                            [wself _setProgress:1.0];
-                        }
-                        [wself finish];
-                    }
+}
+
+- (void)beginReadWriteOnAudio {
+    if (_audioInput != nil) {
+        dispatch_group_enter(_dispatchGroup);
+        _needsLeaveAudio = YES;
+        __weak typeof(self) wSelf = self;
+        [_audioInput requestMediaDataWhenReadyOnQueue:_audioQueue usingBlock:^{
+            __strong typeof(self) strongSelf = wSelf;
+            BOOL shouldReadNextBuffer = YES;
+            while (strongSelf.audioInput.isReadyForMoreMediaData && shouldReadNextBuffer && !strongSelf.cancelled) {
+                CMSampleBufferRef audioBuffer = [strongSelf.audioOutput copyNextSampleBuffer];
+                
+                if (audioBuffer != nil) {
+                    shouldReadNextBuffer = [strongSelf.audioInput appendSampleBuffer:audioBuffer];
+                    
+                    CMTime time = CMSampleBufferGetPresentationTimeStamp(audioBuffer);
+                    
+                    CFRelease(audioBuffer);
+                    
+                    [strongSelf _didAppendToInput:strongSelf.audioInput atTime:time];
+                } else {
+                    shouldReadNextBuffer = NO;
                 }
             }
-        }];
-    }
-    else {
-        videoCompleted = YES;
-    }
-    
-    if (!self.audioOutput) {
-        audioCompleted = YES;
-    } else {
-        [self.audioInput requestMediaDataWhenReadyOnQueue:self.inputQueue usingBlock:^
-         {
-            if (![wself encodeReadySamplesFromOutput:wself.audioOutput toInput:wself.audioInput])
-            {
-                @synchronized(wself)
-                {
-                    audioCompleted = YES;
-                    if (videoCompleted)
-                    {
-                        if (!wself.cancelled) {
-                            [wself _setProgress:1.0];
-                        }
-                        [wself finish];
-                    }
+            
+            if (!shouldReadNextBuffer) {
+                [strongSelf _markInputComplete:strongSelf.audioInput error:nil];
+                if (strongSelf.needsLeaveAudio) {
+                    strongSelf.needsLeaveAudio = NO;
+                    dispatch_group_leave(strongSelf->_dispatchGroup);
                 }
             }
         }];
     }
 }
 
-- (BOOL)encodeReadySamplesFromOutput:(AVAssetReaderOutput *)output toInput:(AVAssetWriterInput *)input
-{
-    while (input.isReadyForMoreMediaData)
-    {
-        CMSampleBufferRef sampleBuffer = [output copyNextSampleBuffer];
-        if (sampleBuffer && !self.cancelled)
-        {
-            
-            BOOL handled = NO;
-            BOOL error = NO;
+- (void)beginReadWriteOnVideo {
+    if (_videoInput != nil) {
+        dispatch_group_enter(_dispatchGroup);
+        _needsLeaveVideo = YES;
+        __weak typeof(self) wSelf = self;
+        [_videoInput requestMediaDataWhenReadyOnQueue:_videoQueue usingBlock:^{
+            BOOL shouldReadNextBuffer = YES;
+            __strong typeof(self) strongSelf = wSelf;
+            while (strongSelf.videoInput.isReadyForMoreMediaData && shouldReadNextBuffer && !strongSelf.cancelled) {
+                
+                CMSampleBufferRef videoBuffer = [strongSelf.videoOutput copyNextSampleBuffer];
 
-            if (self.reader.status != AVAssetReaderStatusReading || self.writer.status != AVAssetWriterStatusWriting)
-            {
-                handled = YES;
-                error = YES;
-            }
-            
-            if (!handled && self.videoOutput == output)
-            {
-                // update the video progress
-                lastSamplePresentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer);
-                lastSamplePresentationTime = CMTimeSubtract(lastSamplePresentationTime, self.timeRange.start);
-                float progress = duration == 0 ? 1 : CMTimeGetSeconds(lastSamplePresentationTime) / duration;
-                [self _setProgress:progress];
-
-                if ([self.delegate respondsToSelector:@selector(assetExportSession:renderFrame:withPresentationTime:toBuffer:)])
-                {
-                    CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
+                if (videoBuffer != nil) {
+                    CMTime time = CMSampleBufferGetPresentationTimeStamp(videoBuffer);
+                    time = CMTimeSubtract(time, self.timeRange.start);
                     CVPixelBufferRef renderBuffer = NULL;
-                    CVReturn status = CVPixelBufferPoolCreatePixelBuffer(NULL, self.videoPixelBufferAdaptor.pixelBufferPool, &renderBuffer);
-                    if (status != kCVReturnSuccess){
-                        NSLog(@"Failed to create pixel buffer");
-                    }
-                    [self.delegate assetExportSession:self renderFrame:pixelBuffer withPresentationTime:lastSamplePresentationTime toBuffer:renderBuffer];
-                    if (![self.videoPixelBufferAdaptor appendPixelBuffer:renderBuffer withPresentationTime:lastSamplePresentationTime])
+                    if ([self.delegate respondsToSelector:@selector(assetExportSession:renderFrame:withPresentationTime:toBuffer:)])
                     {
-                        error = YES;
+                        CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)CMSampleBufferGetImageBuffer(videoBuffer);
+                        CVReturn status = CVPixelBufferPoolCreatePixelBuffer(NULL, self.videoPixelBufferAdaptor.pixelBufferPool, &renderBuffer);
+                        if (status == kCVReturnSuccess){
+                            [self.delegate assetExportSession:self renderFrame:pixelBuffer withPresentationTime:time toBuffer:renderBuffer];
+                        } else {
+                            NSLog(@"Failed to create pixel buffer");
+                        }
                     }
+                    
                     if (renderBuffer) {
-                        CVPixelBufferRelease(renderBuffer);                        
+                        shouldReadNextBuffer = [self.videoPixelBufferAdaptor appendPixelBuffer:renderBuffer withPresentationTime:time];
+                        CVPixelBufferRelease(renderBuffer);
+                    }else {
+                        shouldReadNextBuffer = [strongSelf.videoInput appendSampleBuffer:videoBuffer];
                     }
-                    handled = YES;
+                    
+                    CFRelease(videoBuffer);
+                    
+                    [strongSelf _didAppendToInput:strongSelf.videoInput atTime:time];
+
+                } else {
+                    shouldReadNextBuffer = NO;
                 }
             }
-            if (!handled && ![input appendSampleBuffer:sampleBuffer])
-            {
-                error = YES;
-            }
-            CFRelease(sampleBuffer);
+            
+            if (!shouldReadNextBuffer) {
+                [strongSelf _markInputComplete:strongSelf.videoInput error:nil];
 
-            if (error)
-            {
-                return NO;
+                if (strongSelf.needsLeaveVideo) {
+                    strongSelf.needsLeaveVideo = NO;
+                    dispatch_group_leave(strongSelf->_dispatchGroup);
+                }
             }
-        }
-        else
-        {
-            [input markAsFinished];
-            return NO;
-        }
+        }];
+        
+    }
+}
+
+- (void)_markInputComplete:(AVAssetWriterInput *)input error:(NSError *)error {
+    if (_reader.status == AVAssetReaderStatusFailed) {
+        _error = _reader.error;
+    } else if (error != nil) {
+        _error = error;
     }
 
-    return YES;
+    if (_writer.status != AVAssetWriterStatusCancelled) {
+        [input markAsFinished];
+    }
+}
+
+- (void)_didAppendToInput:(AVAssetWriterInput *)input atTime:(CMTime)time {
+    if (input == _videoInput || _videoInput == nil) {
+        float progress = _totalDuration == 0 ? 1 : CMTimeGetSeconds(time) / _totalDuration;
+        [self _setProgress:progress];
+    }
 }
 
 - (AVMutableVideoComposition *)buildDefaultVideoComposition
@@ -630,30 +685,6 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
     return videoComposition;
 }
 
-- (void)finish
-{
-    // Synchronized block to ensure we never cancel the writer before calling finishWritingWithCompletionHandler
-    if (self.reader.status == AVAssetReaderStatusCancelled || self.writer.status == AVAssetWriterStatusCancelled)
-    {
-        [self complete];
-        return;
-    }
-    
-    if (self.reader.status == AVAssetReaderStatusFailed || self.writer.status == AVAssetWriterStatusFailed)
-    {
-        [self.reader cancelReading];
-        [self.writer cancelWriting];
-        [self complete];
-    }
-    else
-    {
-        [self.writer finishWritingWithCompletionHandler:^
-         {
-            [self complete];
-        }];
-    }
-}
-
 - (void)complete
 {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -704,14 +735,23 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
 - (void)cancelExport
 {
     _cancelled = YES;
-    if (self.inputQueue)
-    {
-        dispatch_sync(self.inputQueue, ^
-        {
-            [self.writer cancelWriting];
-            [self.reader cancelReading];
+
+    dispatch_sync(_videoQueue, ^{
+        if (_needsLeaveVideo) {
+            _needsLeaveVideo = NO;
+            dispatch_group_leave(_dispatchGroup);
+        }
+
+        dispatch_sync(_audioQueue, ^{
+            if (_needsLeaveAudio) {
+                _needsLeaveAudio = NO;
+                dispatch_group_leave(_dispatchGroup);
+            }
         });
-    }
+
+        [_reader cancelReading];
+        [_writer cancelWriting];
+    });
 }
 
 - (void)_setProgress:(float)progress {
@@ -741,7 +781,6 @@ inline static NSDictionary *lf_assetExportAudioConfig(void)
     self.videoInput = nil;
     self.videoPixelBufferAdaptor = nil;
     self.audioInput = nil;
-    self.inputQueue = nil;
     self.completionHandler = nil;
 }
 
