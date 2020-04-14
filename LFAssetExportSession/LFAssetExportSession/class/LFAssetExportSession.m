@@ -72,6 +72,12 @@ inline static CGSize lf_assetExportSessionPresetSize(LFAssetExportSessionPreset 
 
 inline static LFAssetExportSessionPreset lf_assetExportSessionPresetFromSize(CGSize size)
 {
+    if (size.width > size.height) {
+        CGFloat width = size.width;
+        size.width = size.height;
+        size.height = width;
+    }
+    
     if (size.width <= 240 && size.height <= 360) {
         return LFAssetExportSessionPreset240P;
     }
