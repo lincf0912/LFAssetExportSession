@@ -28,8 +28,6 @@
 - (IBAction)startAction:(id)sender {
     NSString *videoPath = [[NSBundle mainBundle] pathForResource:@"IMG_2300" ofType:@"mov"];
     [self _encodeVideoWithURL:[NSURL fileURLWithPath:videoPath]];
-    self.startBtn.enabled = NO;
-    self.stopBtn.enabled = YES;
 }
 - (IBAction)stopAction:(id)sender {
     [self.encoder cancelExport];
@@ -63,10 +61,13 @@
 
 - (void)_encodeVideoWithURL:(NSURL *)videoURL
 {
+    self.startBtn.enabled = NO;
+    self.stopBtn.enabled = YES;
+    
     AVURLAsset *asset = [AVURLAsset assetWithURL:videoURL];
     
     NSURL *outPath = [NSURL fileURLWithPath:[self createFile:[self fileName]]];
-
+    
     
     LFAssetExportSession *encoder = [LFAssetExportSession exportSessionWithAsset:asset preset:(LFAssetExportSessionPreset)self.segmented.selectedSegmentIndex];
     encoder.delegate = self;
