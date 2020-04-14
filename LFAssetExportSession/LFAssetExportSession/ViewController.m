@@ -41,7 +41,7 @@
     NSString *videoPath = [[NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) firstObject] stringByAppendingPathComponent:@"video"];
     NSFileManager *fileManager = [NSFileManager defaultManager];
     if (![fileManager fileExistsAtPath:videoPath]) {
-        [fileManager createFileAtPath:videoPath contents:nil attributes:nil];
+        [fileManager createDirectoryAtPath:videoPath withIntermediateDirectories:YES attributes:nil error:nil];
     }
     return videoPath;
 }
