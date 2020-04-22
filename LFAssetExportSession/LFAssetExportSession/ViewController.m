@@ -9,6 +9,30 @@
 #import "ViewController.h"
 #import "LFAssetExportSession.h"
 
+@interface NSString (LFFileSize)
+
+- (u_int64_t)lf_fileSize;
+
+@end
+
+@implementation NSString (LFFileSize)
+
+- (u_int64_t)lf_fileSize
+{
+    signed long long fileSize = 0;
+    NSFileManager *fileManager = [NSFileManager new]; // default is not thread safe
+    if ([fileManager fileExistsAtPath:self]) {
+        NSError *error = nil;
+        NSDictionary *fileDict = [fileManager attributesOfItemAtPath:self error:&error];
+        if (!error && fileDict) {
+            fileSize = [fileDict fileSize];
+        }
+    }
+    return fileSize;
+}
+
+@end
+
 @interface ViewController () <LFAssetExportSessionDelegate>
 @property (weak, nonatomic) IBOutlet UIButton *startBtn;
 @property (weak, nonatomic) IBOutlet UIButton *stopBtn;
@@ -85,6 +109,7 @@
         {
             
             NSLog(@"Video export succeeded. video path:%@", encoder.outputURL);
+            NSLog(@"video size:%.2fMB", [encoder.outputURL.relativePath lf_fileSize]/1024.0/1024.0);
         }
         else if (encoder.status == AVAssetExportSessionStatusCancelled)
         {
