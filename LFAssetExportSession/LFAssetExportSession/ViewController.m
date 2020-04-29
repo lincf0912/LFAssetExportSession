@@ -33,9 +33,11 @@
 
 @end
 
-@interface ViewController () <LFAssetExportSessionDelegate>
+@interface ViewController () <LFAssetExportSessionDelegate,UINavigationControllerDelegate,UIImagePickerControllerDelegate>
 @property (weak, nonatomic) IBOutlet UIButton *startBtn;
 @property (weak, nonatomic) IBOutlet UIButton *stopBtn;
+@property (weak, nonatomic) IBOutlet UIButton *albumBtn;
+
 @property (weak, nonatomic) IBOutlet UISegmentedControl *segmented;
 
 @property (strong, nonatomic) LFAssetExportSession *encoder;
@@ -47,6 +49,18 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     // Do any additional setup after loading the view.
+}
+
+- (IBAction)openAlbum:(id)sender {
+    UIImagePickerController *picker = [[UIImagePickerController alloc] init];
+    
+    picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;//指定数据来源是相册
+    
+    picker.mediaTypes = [NSArray arrayWithObjects:@"public.movie",  nil];
+    
+    picker.delegate = self;
+    
+    [self presentViewController:picker animated:YES completion:nil];
 }
 
 - (IBAction)startAction:(id)sender {
@@ -86,6 +100,7 @@
 - (void)_encodeVideoWithURL:(NSURL *)videoURL
 {
     self.startBtn.enabled = NO;
+    self.albumBtn.enabled = NO;
     self.stopBtn.enabled = YES;
     
     AVURLAsset *asset = [AVURLAsset assetWithURL:videoURL];
@@ -120,6 +135,7 @@
             NSLog(@"Video export failed with error: %@ (%ld)", encoder.error.localizedDescription, (long)encoder.error.code);
         }
         self.startBtn.enabled = YES;
+        self.albumBtn.enabled = YES;
         self.stopBtn.enabled = NO;
     }];
     
@@ -131,6 +147,27 @@
 - (void)assetExportSessionDidProgress:(LFAssetExportSession *)assetExportSession
 {
     NSLog(@"%f", assetExportSession.progress);
+}
+
+#pragma mark - UIImagePickerControllerDelegate
+- (void)imagePickerController:(UIImagePickerController *)picker didFinishPickingMediaWithInfo:(NSDictionary<NSString *,id> *)info{
+    
+    NSString *mediaType=[info objectForKey:UIImagePickerControllerMediaType];
+        
+    if ([mediaType isEqualToString:@"public.movie"]){
+        //如果是视频
+        NSURL *url = info[UIImagePickerControllerMediaURL];//获得视频的URL
+        
+        [self _encodeVideoWithURL:url];
+        
+    }
+    
+    [picker dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)imagePickerControllerDidCancel:(UIImagePickerController *)picker
+{
+    
 }
 
 @end

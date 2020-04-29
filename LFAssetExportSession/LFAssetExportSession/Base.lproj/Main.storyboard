@@ -3,7 +3,7 @@
     <device id="retina6_1" orientation="portrait" appearance="light"/>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="16086"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="16087"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
@@ -43,20 +43,30 @@
                                     <action selector="stopAction:" destination="BYZ-38-t0r" eventType="touchUpInside" id="KlH-SB-8P4"/>
                                 </connections>
                             </button>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="49d-9c-qeR">
+                                <rect key="frame" x="161" y="395" width="92" height="30"/>
+                                <state key="normal" title="使用相册视频"/>
+                                <connections>
+                                    <action selector="openAlbum:" destination="BYZ-38-t0r" eventType="touchUpInside" id="cCZ-dh-ECX"/>
+                                </connections>
+                            </button>
                         </subviews>
                         <color key="backgroundColor" systemColor="systemBackgroundColor" cocoaTouchSystemColor="whiteColor"/>
                         <constraints>
                             <constraint firstItem="8kM-xK-iXx" firstAttribute="centerX" secondItem="kEs-nf-VDv" secondAttribute="centerX" id="4qO-y1-LqK"/>
+                            <constraint firstItem="kEs-nf-VDv" firstAttribute="top" secondItem="49d-9c-qeR" secondAttribute="bottom" constant="8" id="72a-VD-5dQ"/>
                             <constraint firstItem="6Tk-OE-BBY" firstAttribute="trailing" secondItem="sob-2E-lns" secondAttribute="trailing" constant="20" id="7GU-Fw-EFX"/>
                             <constraint firstItem="sob-2E-lns" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" constant="20" id="EEc-5t-FUn"/>
                             <constraint firstItem="8kM-xK-iXx" firstAttribute="top" secondItem="kEs-nf-VDv" secondAttribute="bottom" constant="8" id="dtH-JR-4yB"/>
                             <constraint firstItem="kEs-nf-VDv" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="efB-Uj-Gus"/>
                             <constraint firstItem="kEs-nf-VDv" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="htQ-dy-iN6"/>
                             <constraint firstItem="sob-2E-lns" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" constant="20" id="oew-yj-NT7"/>
+                            <constraint firstItem="kEs-nf-VDv" firstAttribute="centerX" secondItem="49d-9c-qeR" secondAttribute="centerX" id="yOZ-fA-pIT"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
                     </view>
                     <connections>
+                        <outlet property="albumBtn" destination="49d-9c-qeR" id="U1H-9d-vER"/>
                         <outlet property="segmented" destination="sob-2E-lns" id="4Ze-Wf-eLM"/>
                         <outlet property="startBtn" destination="kEs-nf-VDv" id="zB6-dC-R6s"/>
                         <outlet property="stopBtn" destination="8kM-xK-iXx" id="PZl-Ra-vGM"/>
