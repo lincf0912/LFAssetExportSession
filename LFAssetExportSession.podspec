@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
 s.name         = 'LFAssetExportSession'
-s.version      = '1.0.2'
+s.version      = '1.0.3'
 s.summary      = 'Video compression tool. (Small size and high definition)'
 s.homepage     = 'https://github.com/lincf0912/LFAssetExportSession'
 s.license      = 'MIT'
