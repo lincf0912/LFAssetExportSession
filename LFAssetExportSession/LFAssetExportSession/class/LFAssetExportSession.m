@@ -160,19 +160,27 @@ inline static NSDictionary *lf_assetExportVideoConfig(CGSize size, LFAssetExport
     LFAssetExportSessionPreset realPreset = lf_assetExportSessionPresetFromSize(videoSize);
     unsigned long bitrate = lf_assetExportSessionPresetBitrate(realPreset);
     
+    NSMutableDictionary *videoCompressionProperties = [NSMutableDictionary dictionaryWithDictionary:@{
+        AVVideoAverageBitRateKey: [NSNumber numberWithUnsignedLong:bitrate],
+        AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+        AVVideoAllowFrameReorderingKey:@NO,
+        AVVideoExpectedSourceFrameRateKey:@30
+    }];
+    
+    if (@available(iOS 10.0, *)) {
+        ///感谢“易风”提供参考
+        ///选择视频颜色编码格式(默认格式会支持HDR, 导致视频在chrome, ie泛白)
+        ///AVVideoYCbCrMatrix_ITU_R_2020 为支持HDR的格式
+        [videoCompressionProperties setObject:AVVideoColorPrimaries_ITU_R_709_2 forKey:AVVideoColorPrimariesKey];
+    }
+    
     return @{
         AVVideoCodecKey: AVVideoCodecH264,
         AVVideoWidthKey:[NSNumber numberWithInteger:videoSize.width],
         AVVideoHeightKey:[NSNumber numberWithInteger:videoSize.height],
         AVVideoScalingModeKey:AVVideoScalingModeResizeAspectFill,
-        AVVideoCompressionPropertiesKey: @
-        {
-            AVVideoAverageBitRateKey: [NSNumber numberWithUnsignedLong:bitrate],
-            AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
-            AVVideoAllowFrameReorderingKey:@NO,
-            AVVideoExpectedSourceFrameRateKey:@30
-        },
-    };
+        AVVideoCompressionPropertiesKey: videoCompressionProperties,
+    };;
 }
 
 //inline static NSDictionary *lf_assetExportVideoOutputFilterConfig(void)
