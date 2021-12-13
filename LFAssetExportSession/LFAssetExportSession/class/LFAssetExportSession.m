@@ -172,6 +172,8 @@ inline static NSDictionary *lf_assetExportVideoConfig(CGSize size, LFAssetExport
         ///选择视频颜色编码格式(默认格式会支持HDR, 导致视频在chrome, ie泛白)
         ///AVVideoYCbCrMatrix_ITU_R_2020 为支持HDR的格式
         [videoCompressionProperties setObject:AVVideoColorPrimaries_ITU_R_709_2 forKey:AVVideoColorPrimariesKey];
+        [videoCompressionProperties setObject:AVVideoTransferFunction_ITU_R_709_2 forKey:AVVideoTransferFunctionKey];
+        [videoCompressionProperties setObject:AVVideoYCbCrMatrix_ITU_R_709_2 forKey:AVVideoYCbCrMatrixKey];
     }
     
     return @{
